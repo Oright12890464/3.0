@@ -15,7 +15,7 @@ input,select,textarea,button{font:inherit;padding:11px;border:1px solid #cbd5e1;
 <div class="muted" style="margin-top:8px">雙數量倉別會顯示兩個庫位，單數量倉別顯示一個庫位。異動送出後請重新查詢核對。</div><div id="status" class="status">請輸入關鍵字後查詢。</div></section>
 <div class="bar"><span id="count">尚未查詢</span><button id="refresh" class="light" type="button">重新查詢</button></div><section id="results"><div class="empty">請輸入品號或儲位開始查詢。</div></section>
 </main><script>
-/* 請換成你的 Apps Script Web App /exec 網址。這是測試版前端。 */
+/https://script.google.com/macros/s/AKfycbyeq91RAre2UXqnmVyqpcu-XbHZQ4DfFDEGIoaDaIKtivl9GEV70_xX6aamVPUP4jNM/exec/
 const GAS_URL="請替換成你的Apps_Script_Web_App_exec網址";
 let items=[],selected=-1,busy=false;const $=id=>document.getElementById(id);
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
