@@ -16,7 +16,7 @@ input,select,textarea,button{font:inherit;padding:11px;border:1px solid #cbd5e1;
 <div class="bar"><span id="count">尚未查詢</span><button id="refresh" class="light" type="button">重新查詢</button></div><section id="results"><div class="empty">請輸入品號或儲位開始查詢。</div></section>
 </main><script>
 /https://script.google.com/macros/s/AKfycbyeq91RAre2UXqnmVyqpcu-XbHZQ4DfFDEGIoaDaIKtivl9GEV70_xX6aamVPUP4jNM/exec/
-const GAS_URL="請替換成你的Apps_Script_Web_App_exec網址";
+const GAS_URL="https://script.google.com/macros/s/AKfycbx9GsW7xbOkOdZbAsm7bXov3ANKWctD3MBC3Y4GealV7YnH5zKEDHkhYl0nkyXvZNwk/exec";
 let items=[],selected=-1,busy=false;const $=id=>document.getElementById(id);
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function ready(){if(!GAS_URL.startsWith('https://script.google.com/macros/s/')||!GAS_URL.endsWith('/exec'))throw Error('請先設定 GAS_URL 為 Apps Script 的 /exec 網址。');}
