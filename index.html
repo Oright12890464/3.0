@@ -1,0 +1,37 @@
+﻿<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>八大倉物料庫存查詢</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f2f5f9;color:#202b3a;font-family:Arial,"Microsoft JhengHei",sans-serif}
+main{max-width:1200px;margin:auto;padding:18px 12px}.panel{background:white;border:1px solid #dce4ee;border-radius:14px;padding:16px;margin-bottom:14px}
+h1{font-size:23px;margin:0 0 6px}.muted{color:#68778b;font-size:13px;line-height:1.6}.search{display:grid;grid-template-columns:150px 1fr 90px;gap:8px;margin-top:14px}
+input,select,textarea,button{font:inherit;padding:11px;border:1px solid #cbd5e1;border-radius:9px;min-width:0}button{border:0;background:#315f91;color:white;font-weight:bold;cursor:pointer}.light{background:#e9eef5;color:#243247}
+.status{font-size:14px;margin-top:12px;white-space:pre-wrap}.bar{display:flex;justify-content:space-between;margin:14px 2px;color:#596678;font-size:14px}
+.wrap{overflow:auto;background:white;border:1px solid #dce4ee;border-radius:12px}table{width:100%;border-collapse:collapse;min-width:720px}th{background:#eaf0f7;text-align:left;color:#45556a;font-size:13px;padding:12px}td{padding:12px;border-top:1px solid #e8ecf1;font-size:14px}tr.data{cursor:pointer}tr.data:hover td{background:#f7faff}tr.sel td{background:#e7f1ff}.qty{background:#e8f5ee;color:#176d48;padding:5px 8px;border-radius:7px;font-weight:bold}.detail td{background:#f7f9fc}.slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.slot{background:white;border:1px solid #d9e1eb;border-radius:12px;padding:12px}.slot h3{margin:0 0 10px;font-size:15px}.slot input{width:100%;margin:4px 0}.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.green{background:#247a55}.red{background:#a83b43}.gray{background:#687587}.note{width:100%;margin-top:10px;min-height:55px}.empty{padding:28px;text-align:center;color:#68778b;background:white;border:1px solid #dce4ee;border-radius:12px}
+@media(max-width:600px){.search{grid-template-columns:1fr}.slots{grid-template-columns:1fr}h1{font-size:20px}}
+</style></head><body><main>
+<section class="panel"><h1>八大倉物料庫存查詢</h1><div class="muted">品號／儲位查詢｜點選資料列展開入庫、出庫與修改庫位</div>
+<form id="form"><div class="search"><select id="mode"><option value="ITEM">依品號查詢</option><option value="LOCATION">依儲位查詢</option></select><input id="q" placeholder="輸入品號或儲位關鍵字"><button>查詢</button></div></form>
+<div class="muted" style="margin-top:8px">雙數量倉別會顯示兩個庫位，單數量倉別顯示一個庫位。異動送出後請重新查詢核對。</div><div id="status" class="status">請輸入關鍵字後查詢。</div></section>
+<div class="bar"><span id="count">尚未查詢</span><button id="refresh" class="light" type="button">重新查詢</button></div><section id="results"><div class="empty">請輸入品號或儲位開始查詢。</div></section>
+</main><script>
+/* 請換成你的 Apps Script Web App /exec 網址。這是測試版前端。 */
+const GAS_URL="請替換成你的Apps_Script_Web_App_exec網址";
+let items=[],selected=-1,busy=false;const $=id=>document.getElementById(id);
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function ready(){if(!GAS_URL.startsWith('https://script.google.com/macros/s/')||!GAS_URL.endsWith('/exec'))throw Error('請先設定 GAS_URL 為 Apps Script 的 /exec 網址。');}
+function jsonp(params){return new Promise((resolve,reject)=>{let cb='cb'+Date.now()+Math.floor(Math.random()*9999),s=document.createElement('script'),t=setTimeout(()=>{clean();reject(Error('後端逾時，請檢查部署網址及權限。'));},20000);function clean(){clearTimeout(t);delete window[cb];s.remove()}window[cb]=x=>{clean();resolve(x)};s.onerror=()=>{clean();reject(Error('連線失敗，請檢查後端部署。'))};params.callback=cb;s.src=GAS_URL+'?'+new URLSearchParams(params);document.body.appendChild(s)})}
+$('form').onsubmit=e=>{e.preventDefault();search()};$('refresh').onclick=search;
+async function search(){if(busy)return;let q=$('q').value.trim();if(!q){$('status').textContent='請先輸入關鍵字。';return}try{ready()}catch(e){$('status').textContent=e.message;return}
+busy=true;$('status').textContent='查詢中…';$('results').innerHTML='<div class="empty">查詢中…</div>';
+try{let d=await jsonp({action:'search',keyword:q,mode:$('mode').value});if(d.success===false)throw Error(d.message||'查詢失敗');items=d.results||[];selected=items.length?0:-1;render()}catch(e){$('status').textContent='查詢失敗：'+e.message;$('results').innerHTML='<div class="empty">請確認後端 Code.gs 已部署並支援 JSONP。</div>'}finally{busy=false}}
+function render(){ $('count').textContent='共 '+items.length+' 筆';$('status').textContent=items.length?'點選資料列後可操作。':'沒有找到資料。';if(!items.length){$('results').innerHTML='<div class="empty">沒有符合資料。</div>';return}
+let h='<div class="wrap"><table><thead><tr><th>倉別</th><th>品號</th><th>品名</th><th>批號</th><th>儲位1</th><th>數量1</th><th>儲位2</th><th>數量2</th></tr></thead><tbody>';
+items.forEach((x,i)=>{h+='<tr class="data '+(i===selected?'sel':'')+'" data-i="'+i+'"><td>'+esc(x.sheetName)+'</td><td><b>'+esc(x.itemNo)+'</b></td><td>'+esc(x.itemName)+'<div class="muted">日期：'+esc(x.dateText)+'</div></td><td>'+esc(x.batch)+'</td><td>'+esc(x.loc1)+'</td><td><span class="qty">'+esc(x.qty1||0)+'</span></td><td>'+esc(x.type==='double'?x.loc2:'—')+'</td><td>'+esc(x.type==='double'?x.qty2:'—')+'</td></tr>';if(i===selected)h+='<tr class="detail"><td colspan="8">'+detail(x,i)+'</td></tr>'});h+='</tbody></table></div>';$('results').innerHTML=h}
+function detail(x,i){let h='<div class="slots">'+slot(x,i,1);if(x.type==='double')h+=slot(x,i,2);h+='</div><textarea class="note" id="note'+i+'" placeholder="本次異動備註（選填）"></textarea>';return h}
+function slot(x,i,n){let q=n===2?x.qty2:x.qty1,l=n===2?x.loc2:x.loc1;return '<div class="slot"><h3>庫位'+n+'｜目前 '+esc(l||'未設定')+'｜數量 '+esc(q||0)+'</h3><input id="amt'+i+'_'+n+'" type="number" min="0.000001" step="any" placeholder="異動數量"><div class="actions"><button class="green" data-act="in" data-i="'+i+'" data-n="'+n+'">入庫</button><button class="red" data-act="out" data-i="'+i+'" data-n="'+n+'">出庫</button></div><input id="loc'+i+'_'+n+'" placeholder="輸入新庫位"><button class="gray" data-act="loc" data-i="'+i+'" data-n="'+n+'">修改庫位</button></div>'}
+$('results').onclick=async e=>{let b=e.target.closest('button[data-act]');if(b){e.stopPropagation();await act(+b.dataset.i,b.dataset.act,+b.dataset.n);return}let r=e.target.closest('tr[data-i]');if(r){selected=+r.dataset.i;render()}};
+async function act(i,action,n){if(busy)return;let x=items[i],p={sheetName:x.sheetName,row:x.row,action,note:$('note'+i)?.value||'',qty1:'',qty2:'',loc1:'',loc2:''};if(action==='loc'){let v=$('loc'+i+'_'+n).value.trim();if(!v){alert('請輸入新庫位');return}p.loc1='';p.loc2='';p[n===1?'loc1':'loc2']=v}else{let v=$('amt'+i+'_'+n).value;if(!v||+v<=0){alert('請輸入大於 0 的數量');return}p[n===1?'qty1':'qty2']=v;if(!confirm('確定'+(action==='in'?'入庫':'出庫')+' '+v+'？'))return}
+try{ready()}catch(e){alert(e.message);return}busy=true;$('status').textContent='已送出請求，重新查詢確認中…';
+try{await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:new URLSearchParams({action:'mutate',payload:JSON.stringify(p)}).toString()});await new Promise(r=>setTimeout(r,1400));busy=false;await search();alert('請核對重新查詢後的庫存／庫位；若未變更，請檢查後端權限及部署。')}catch(e){busy=false;alert('送出失敗：'+e.message)}}
+</script></body></html>

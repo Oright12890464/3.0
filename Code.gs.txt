@@ -1,0 +1,1006 @@
+﻿/**
+ * 物料庫存查詢與異動系統｜獨立版
+ * 鐵灰霧白介面＋累積保留入出庫公式
+ */
+const SPREADSHEET_ID = '1EEcpVF9lqowQIziKngu9nlKI0WNZc4uJjYDvVrTqSxQ';
+
+const SHEET_CONFIG = [
+  {name:'物料A201',order:1,type:'double',dateCol:1,itemCol:4,nameCol:5,batchCol:2,qty1Col:8,loc1Col:7,qty2Col:10,loc2Col:9,noteCol:13,movementCol:17,cols:17},
+  {name:'半成品A302',order:2,type:'single',dateCol:1,itemCol:4,nameCol:5,batchCol:2,qty1Col:8,loc1Col:7,noteCol:11,movementCol:13,cols:13},
+  {name:'呆滯A404',order:3,type:'double',dateCol:1,itemCol:4,nameCol:5,batchCol:2,qty1Col:8,loc1Col:7,qty2Col:10,loc2Col:9,noteCol:13,movementCol:17,cols:17},
+  {name:'不合格A402',order:4,type:'double',dateCol:1,itemCol:4,nameCol:5,batchCol:2,qty1Col:8,loc1Col:7,qty2Col:10,loc2Col:9,noteCol:13,movementCol:17,cols:17},
+  {name:'特販G101',order:5,type:'double',dateCol:1,itemCol:4,nameCol:5,batchCol:2,qty1Col:8,loc1Col:7,qty2Col:10,loc2Col:9,noteCol:13,movementCol:17,cols:17},
+  {name:'待報廢A405',order:6,type:'single',dateCol:null,itemCol:1,nameCol:2,batchCol:null,qty1Col:4,loc1Col:5,noteCol:7,movementCol:9,cols:9},
+  {name:'A407',order:7,type:'single',dateCol:null,itemCol:1,nameCol:2,batchCol:null,qty1Col:4,loc1Col:5,noteCol:7,movementCol:9,cols:9},
+  {name:'其他',order:8,type:'double',dateCol:1,itemCol:4,nameCol:5,batchCol:2,qty1Col:8,loc1Col:7,qty2Col:10,loc2Col:9,noteCol:13,movementCol:15,cols:15}
+];
+
+// 網頁介面：鐵灰＋霧白簡約風格
+const MATERIAL_HTML = `<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<base target="_top">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>物料庫存查詢與異動</title>
+<style>
+:root{
+  --bg:#edf0f3;
+  --panel:#ffffff;
+  --panel2:#e7ebef;
+  --line:#d5dbe1;
+  --text:#303943;
+  --muted:#77818c;
+  --accent:#586b7d;
+  --green:#39856b;
+  --red:#b85b60;
+  --input:#f7f8fa;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Arial,"Microsoft JhengHei",sans-serif;
+}
+.app{max-width:1250px;margin:0 auto;padding:24px 18px 48px}
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:16px;margin-bottom:24px;
+}
+h1{font-size:26px;margin:0 0 8px;letter-spacing:.3px;font-weight:800;color:#303943}
+.sub{color:var(--muted);font-size:13px}
+.pill{
+  border:1px solid var(--line);background:#fff;color:#596b7c;
+  border-radius:999px;padding:8px 13px;font-size:12px;
+  white-space:nowrap;font-weight:700;
+}
+.operatorbar{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.operatorbar label{font-size:14px;font-weight:800;white-space:nowrap;color:#596572}
+.operatorbar select{width:240px;max-width:100%;background:#fff;border:1px solid var(--line);border-radius:9px;color:var(--text);padding:11px 13px;font-size:16px;font-family:inherit;outline:none}
+.operatorbar select:focus{border-color:#8295a6;box-shadow:0 0 0 3px #8295a61c}
+.searchbar{display:flex;gap:10px;margin-bottom:14px}
+input,textarea{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:9px;
+  color:var(--text);
+  padding:12px 13px;
+  font-size:16px;
+  outline:none;
+  font-family:inherit;
+  box-sizing:border-box;
+}
+input:focus,textarea:focus{
+  border-color:#8295a6;box-shadow:0 0 0 3px #8295a61c;
+}
+button{
+  cursor:pointer;border:1px solid var(--line);background:#fff;
+  color:#46515c;border-radius:9px;padding:11px 15px;
+  font-size:14px;font-weight:700;transition:.15s;
+}
+button:hover{border-color:#8796a4;background:#f4f6f8}
+button.primary{background:#586b7d;border-color:#586b7d;color:#fff}
+button.primary:hover{background:#465969;border-color:#465969}
+button.danger{color:#a74e54;border-color:#e7caca;background:#fbf0f0}
+button.danger:hover{background:#f5e4e4;border-color:#d9aaaa}
+button:disabled{opacity:.45;cursor:not-allowed}
+.toolbar{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin:15px 0;color:var(--muted);font-size:13px;
+}
+.results{display:flex;flex-direction:column;gap:10px}
+.item{
+  cursor:pointer;display:grid;
+  grid-template-columns:minmax(150px,.8fr) minmax(0,2fr);
+  gap:14px;align-items:center;padding:16px;
+  border:1px solid #d9dfe5;background:#fff;border-radius:12px;
+  box-shadow:0 2px 7px #27344208;transition:.15s;
+}
+.item:hover{
+  border-color:#8295a6;box-shadow:0 5px 15px #27344212;
+  transform:translateY(-1px);
+}
+.warehouse{
+  align-self:stretch;display:flex;flex-direction:column;
+  justify-content:center;gap:6px;padding:12px;border-radius:8px;
+  background:#e9edf1;border-left:4px solid #697b8c;min-width:0;
+}
+.warehouse strong{font-size:15px;color:#36424e;overflow-wrap:anywhere}
+.warehouse span{color:#7b8590;font-size:12px}
+.details{min-width:0;display:flex;flex-direction:column;gap:7px}
+.name{font-size:17px;font-weight:800;color:#36424e;overflow-wrap:anywhere}
+.meta{display:flex;flex-wrap:wrap;gap:7px 14px;color:#77818c;font-size:13px}
+.stockline{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+.stock{
+  border:1px solid #dce2e7;border-radius:9px;padding:7px 9px;
+  font-size:12px;color:#56616c;background:#f5f7f9;
+}
+.stock b{color:#39856b;font-size:14px;margin-left:5px}
+.item-actions{display:flex;flex-direction:column;gap:8px;min-width:88px}
+.item-actions button{padding:9px 12px}
+.empty{
+  text-align:center;padding:45px 16px;color:var(--muted);
+  border:1px dashed var(--line);border-radius:12px;background:#fff;
+}
+.status{display:none;padding:12px 14px;border-radius:9px;margin:12px 0;font-size:14px}
+.status.ok{display:block;color:#27654f;background:#e9f5ef;border:1px solid #b9dfcc}
+.status.err{display:block;color:#98464b;background:#fbefef;border:1px solid #e8c7c9}
+.detail-top{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.detail-top h2{font-size:23px;margin:0;color:#303943}
+.detail-grid{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.detail-row{
+  display:grid;grid-template-columns:minmax(125px,30%) minmax(0,1fr);
+  border-bottom:1px solid #e1e5e9;min-height:48px;
+}
+.detail-row:last-child{border-bottom:0}
+.detail-label{
+  padding:13px 14px;color:#596572;background:#edf0f3;
+  font-weight:700;overflow-wrap:anywhere;
+}
+.detail-value{
+  padding:13px 14px;white-space:pre-wrap;overflow-wrap:anywhere;
+  min-width:0;background:#fff;color:#303943;
+}
+.detail-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.detail-actions button{flex:1;min-width:110px}
+.detail-edit-input{padding:9px 10px;border-radius:8px}
+.back-btn{white-space:nowrap}
+.hidden{display:none!important}
+.overlay{
+  position:fixed;inset:0;background:#26313d66;display:none;
+  align-items:center;justify-content:center;padding:16px;z-index:10;
+}
+.overlay.show{display:flex}
+.modal{
+  width:min(620px,100%);max-height:92vh;overflow:auto;
+  background:#fff;border:1px solid var(--line);border-radius:14px;
+  padding:22px;box-shadow:0 20px 70px #27344224;
+}
+.modal h2{margin:0 0 8px;font-size:21px}
+.modal-desc{color:var(--muted);font-size:13px;margin-bottom:18px;line-height:1.6}
+.field{margin:13px 0}
+.field label{display:block;color:#596572;font-size:13px;margin-bottom:7px;font-weight:700}
+.slot{border:1px solid var(--line);border-radius:10px;padding:13px;margin:12px 0;background:#f7f8fa}
+.slot-title{font-weight:800;margin-bottom:9px;color:#586b7d}
+.modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:20px}
+.busy{opacity:.65;pointer-events:none}
+.hint{font-size:12px;color:var(--muted);line-height:1.6}
+@media(max-width:700px){
+  .app{padding:18px 12px 34px}
+  h1{font-size:22px}
+  header{flex-direction:column;align-items:flex-start}
+  .operatorbar{align-items:stretch;flex-direction:column;gap:7px}
+  .operatorbar select{width:100%}
+  .searchbar{flex-direction:column}
+  .item{grid-template-columns:1fr;gap:10px}
+  .warehouse{min-height:66px}
+  .item-actions{flex-direction:row}
+  .item-actions button{flex:1}
+  .detail-row{grid-template-columns:minmax(100px,34%) minmax(0,1fr)}
+  .detail-label,.detail-value{padding:11px}
+}
+</style>
+</head>
+<body>
+<main class="app" id="app">
+  <header>
+    <div>
+      <h1>物料庫存查詢與異動</h1>
+      <div class="sub">獨立物料版 · 跨分頁搜尋 · 儲位分開異動</div>
+    </div>
+    <div class="pill">物料系統</div>
+  </header>
+
+  <section id="listView">
+    <div class="operatorbar">
+      <label for="operatorSelect">操作人員</label>
+      <select id="operatorSelect" aria-label="選擇操作人員">
+        <option value="">請選擇操作人員</option>
+        <option value="湯秀蓮">湯秀蓮</option>
+        <option value="李政松">李政松</option>
+        <option value="邱慶哲">邱慶哲</option>
+        <option value="黃文廷">黃文廷</option>
+      </select>
+    </div>
+    <div class="searchbar">
+      <input id="query" placeholder="輸入品號或儲位關鍵字" autocomplete="off">
+      <button class="primary" id="searchBtn">查詢資料</button>
+      <button id="clearBtn">清除</button>
+    </div>
+    <div class="hint">搜尋範圍：八大倉的品號與已設定的儲位欄位；沒有第二儲位的倉別會自動略過。結果依倉別、品號、日期（舊到新）排序。</div>
+    <div id="status" class="status"></div>
+    <div class="toolbar">
+      <span id="count">準備載入資料…</span>
+    </div>
+    <div id="results" class="results"></div>
+  </section>
+
+  <section id="detailView" class="hidden">
+    <div class="detail-top">
+      <button class="back-btn" id="backBtn">← 返回查詢</button>
+      <h2>物料詳細資料</h2>
+    </div>
+    <div id="detailHeading" class="sub" style="margin-bottom:12px"></div>
+    <div id="detailFields" class="detail-grid"></div>
+    <div class="detail-actions" id="detailActions">
+      <button class="primary" id="detailIn">入庫</button>
+      <button class="danger" id="detailOut">出庫</button>
+      <button id="detailEdit">編輯</button>
+    </div>
+  </section>
+</main>
+
+<div class="overlay" id="overlay">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h2 id="modalTitle">操作資料</h2>
+    <div class="modal-desc" id="modalDesc"></div>
+    <div id="modalBody"></div>
+    <div class="modal-actions">
+      <button id="cancelBtn">取消</button>
+      <button class="primary" id="submitBtn">確認執行</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentResults=[],currentOperation=null,busy=false,currentDetailIndex=null,editMode=false;
+const $=id=>document.getElementById(id);
+const OPERATOR_STORAGE_KEY='materialInventorySelectedOperator';
+const VALID_OPERATORS=['湯秀蓮','李政松','邱慶哲','黃文廷'];
+
+// 記住上次選擇的人員；重新整理網頁後仍保留。
+try {
+  const savedOperator=localStorage.getItem(OPERATOR_STORAGE_KEY)||'';
+  if(VALID_OPERATORS.includes(savedOperator)) $('operatorSelect').value=savedOperator;
+} catch(e) {}
+$('operatorSelect').addEventListener('change',()=>{
+  try {
+    if(VALID_OPERATORS.includes($('operatorSelect').value)) {
+      localStorage.setItem(OPERATOR_STORAGE_KEY,$('operatorSelect').value);
+    } else {
+      localStorage.removeItem(OPERATOR_STORAGE_KEY);
+    }
+  } catch(e) {}
+});
+
+$('query').addEventListener('keydown',e=>{if(e.key==='Enter')search();});
+$('searchBtn').addEventListener('click',search);
+$('clearBtn').addEventListener('click',()=>{
+  $('query').value='';
+  $('query').focus();
+});
+$('cancelBtn').addEventListener('click',closeModal);
+$('backBtn').addEventListener('click',showList);
+$('detailIn').addEventListener('click',()=>{if(currentDetailIndex!==null)openOperation(currentDetailIndex,'movement','in');});
+$('detailOut').addEventListener('click',()=>{if(currentDetailIndex!==null)openOperation(currentDetailIndex,'movement','out');});
+$('detailEdit').addEventListener('click',toggleEditMode);
+$('submitBtn').addEventListener('click',submitModal);
+$('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeModal();});
+
+$('results').addEventListener('keydown',e=>{
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches('article[data-index]')){
+    e.preventDefault();openDetail(Number(e.target.dataset.index));
+  }
+});
+$('results').addEventListener('click',e=>{
+  const card=e.target.closest('article[data-index]');
+  if(!card)return;
+  openDetail(Number(card.dataset.index));
+});
+
+function esc(v){
+  return String(v??'').replace(/[&<>"']/g,c=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function setBusy(v){
+  busy=v;
+  $('app').classList.toggle('busy',v);
+  $('searchBtn').disabled=v;
+  $('submitBtn').disabled=v;
+}
+function showStatus(msg,type='ok'){
+  $('status').textContent=msg;
+  $('status').className='status '+type;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function hideStatus(){
+  $('status').textContent='';
+  $('status').className='status';
+}
+function search(){
+  if(busy)return;
+  hideStatus();
+  $('results').innerHTML='<div class="empty">查詢中…</div>';
+  $('count').textContent='正在搜尋八大倉的品號與儲位…';
+  setBusy(true);
+  google.script.run
+    .withSuccessHandler(data=>{
+      setBusy(false);
+      currentResults=data.results||[];
+      renderResults(currentResults);
+      if(currentDetailIndex!==null&&currentResults[currentDetailIndex])openDetail(currentDetailIndex);
+    })
+    .withFailureHandler(err=>{
+      setBusy(false);
+      $('results').innerHTML='';
+      $('count').textContent='查詢失敗';
+      showStatus(err.message||String(err),'err');
+    })
+    .searchMaterials($('query').value.trim());
+}
+
+/**
+ * 只刷新目前操作的那一筆物料
+ */
+function refreshOneRecord(sheetName, rowNumber, message) {
+  google.script.run
+    .withSuccessHandler(item => {
+      const index = currentResults.findIndex(
+        x => x.sheetName === sheetName && x.row === rowNumber
+      );
+
+      if (index >= 0) {
+        currentResults[index] = item;
+
+        // 更新目前詳細資料畫面
+        if (
+          currentDetailIndex === index &&
+          !$('detailView').classList.contains('hidden')
+        ) {
+          editMode = false;
+          $('detailHeading').textContent =
+            item.sheetName + '｜' +
+            (item.itemNo || '無品號') + '｜' +
+            (item.itemName || '無品名');
+
+          renderDetailFields(item);
+          $('detailActions').innerHTML = defaultDetailActions();
+          bindDetailActions();
+        }
+
+        // 同步更新查詢清單中這筆資料
+        renderResults(currentResults);
+      }
+
+      if (message) showStatus(message, 'ok');
+    })
+    .withFailureHandler(err => {
+      showStatus(
+        '異動已完成，但刷新資料失敗：' + (err.message || String(err)),
+        'err'
+      );
+    })
+    .getMaterialRecord(sheetName, rowNumber);
+}
+function renderResults(items){
+  $('count').textContent='共 '+items.length+' 筆資料';
+  if(!items.length){
+    $('results').innerHTML='<div class="empty">沒有找到符合的資料，請換一個關鍵字。</div>';
+    return;
+  }
+  $('results').innerHTML=items.map((x,i)=>{
+    return '<article class="item" data-index="'+i+'" tabindex="0" role="button" aria-label="查看 '+esc(x.itemName||x.itemNo||'物料')+' 詳細資料">'+
+      '<div class="warehouse"><strong>'+esc(x.sheetName)+'</strong><span>倉別</span></div>'+
+      '<div class="details"><div class="name">'+esc(x.itemName||'（未填品名）')+'</div>'+
+      '<div class="meta"><span>品號：'+esc(x.itemNo||'—')+'</span><span>批號：'+esc(x.batch||'—')+'</span></div>'+
+      '<div class="hint">點擊查看完整資料　›</div></div></article>';
+  }).join('');
+}
+function openDetail(index){
+  const item=currentResults[index];
+  if(!item)return;
+  currentDetailIndex=index;
+  editMode=false;
+  $('listView').classList.add('hidden');
+  $('detailView').classList.remove('hidden');
+  $('detailHeading').textContent=item.sheetName+'｜'+(item.itemNo||'無品號')+'｜'+(item.itemName||'無品名');
+  renderDetailFields(item);
+  $('detailActions').innerHTML=defaultDetailActions();
+  bindDetailActions();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function normalizeLabel(label){
+  return String(label||'').replace(/[\\s\\r\\n：:（）()]/g,'').toLowerCase();
+}
+function isProtectedField(label,col,item){
+  const n=normalizeLabel(label);
+  const protectedNames=['品號','品名','數量1','數量2','數量','erp','確認','單位數量','異動','差異'];
+  if(protectedNames.includes(n))return true;
+  const protectedCols=[
+    item.itemNoCol,item.itemNameCol,item.qty1Col,item.qty2Col,
+    item.erpCol,item.confirmCol,item.unitQtyCol,item.movementCol,item.diffCol
+  ].filter(Boolean);
+  return protectedCols.includes(col);
+}
+function renderDetailFields(item){
+  const fields=Array.isArray(item.allFields)?item.allFields:[];
+  const fallback=['進料日期','批號','有效日期','品號','品名','ERP','庫位1','數量1','庫位2','數量2','差異','前置包裝','備註','確認','箱/板','單位數量','異動'];
+  $('detailFields').innerHTML=fields.map((v,i)=>{
+    const label=(item.headers&&item.headers[i])?item.headers[i]:fallback[i]||('欄位'+(i+1));
+    const col=i+1,locked=isProtectedField(label,col,item),value=v===''?'':String(v);
+    let content=esc(value||'—');
+    if(editMode&&!locked){
+      content='<input class="detail-edit-input" data-col="'+col+'" value="'+esc(value)+'" placeholder="（空白）" aria-label="編輯'+esc(label)+'">';
+    }
+    return '<div class="detail-row"><div class="detail-label">'+esc(label)+(editMode&&!locked?' <span style="color:var(--accent)">✎</span>':'')+'</div><div class="detail-value">'+content+'</div></div>';
+  }).join('');
+}
+function defaultDetailActions(){
+  return '<button class="primary" id="detailIn">入庫</button><button class="danger" id="detailOut">出庫</button><button id="detailEdit">編輯</button>';
+}
+function bindDetailActions(){
+  $('detailIn').addEventListener('click',()=>{if(currentDetailIndex!==null)openOperation(currentDetailIndex,'movement','in');});
+  $('detailOut').addEventListener('click',()=>{if(currentDetailIndex!==null)openOperation(currentDetailIndex,'movement','out');});
+  $('detailEdit').addEventListener('click',toggleEditMode);
+}
+function toggleEditMode(){
+  if(currentDetailIndex===null)return;
+  editMode=true;
+  renderDetailFields(currentResults[currentDetailIndex]);
+  $('detailActions').innerHTML='<button class="primary" id="saveEdit">儲存修改</button><button id="cancelEdit">取消編輯</button>';
+  $('saveEdit').addEventListener('click',saveDetailEdits);
+  $('cancelEdit').addEventListener('click',()=>{
+    editMode=false;
+    renderDetailFields(currentResults[currentDetailIndex]);
+    $('detailActions').innerHTML=defaultDetailActions();
+    bindDetailActions();
+  });
+}
+function saveDetailEdits() {
+  if (busy || currentDetailIndex === null) return;
+
+  const item = currentResults[currentDetailIndex];
+
+  const fields = Array.from(
+    document.querySelectorAll('.detail-edit-input')
+  ).map(el => ({
+    col: Number(el.dataset.col),
+    value: el.value
+  }));
+
+  const payload = {
+    sheetName: item.sheetName,
+    row: item.row,
+    fields: fields
+  };
+
+  setBusy(true);
+
+  google.script.run
+    .withSuccessHandler(result => {
+      setBusy(false);
+
+      refreshOneRecord(
+        item.sheetName,
+        item.row,
+        result.message || '資料修改完成。'
+      );
+    })
+    .withFailureHandler(err => {
+      setBusy(false);
+      showStatus(err.message || String(err), 'err');
+    })
+    .updateMaterialFields(payload);
+}
+function showList(){
+  $('detailView').classList.add('hidden');
+  $('listView').classList.remove('hidden');
+  currentDetailIndex=null;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function openOperation(index,kind,action){
+  if(kind==='movement'&&!VALID_OPERATORS.includes($('operatorSelect').value)){
+    showStatus('請先選擇操作人員，再進行入庫或出庫。','err');
+    return;
+  }
+  const item=currentResults[index];
+  if(!item)return;
+  currentOperation={item,kind,action};
+  const double=item.type==='double',isIn=action==='in';
+  $('modalTitle').textContent=kind==='location'?'修改庫位':(isIn?'入庫':'出庫');
+  $('modalDesc').textContent=item.sheetName+'｜'+(item.itemNo||'無品號')+'｜'+(item.itemName||'無品名')+
+    (item.batch?'｜批號 '+item.batch:'')+
+    (kind==='movement'?'。只會異動有填寫數量的欄位，留空的欄位不會變動。':'。庫位1與庫位2分開修改，留空欄位不會變動。');
+  let body='';
+  if(kind==='movement'){
+    body+=slotHtml(double?'儲位1／數量1':'庫位／數量',item.loc1,item.qty1,'qty1',true);
+    if(double)body+=slotHtml('儲位2／數量2',item.loc2,item.qty2,'qty2',true);
+    body+='<div class="field"><label for="opNote">異動備註（選填）</label><textarea id="opNote" rows="2" placeholder="例如：產線退料、領料單號"></textarea></div>';
+  }else{
+    body+=slotHtml(double?'儲位1／庫位1':'庫位',item.loc1,item.qty1,'loc1',false);
+    if(double)body+=slotHtml('儲位2／庫位2',item.loc2,item.qty2,'loc2',false);
+    body+='<div class="hint">只會修改有填寫的新庫位；未填寫的儲位保持原樣。</div>';
+  }
+  $('modalBody').innerHTML=body;
+  $('submitBtn').textContent=kind==='location'?'儲存庫位':'確認'+(isIn?'入庫':'出庫');
+  $('overlay').classList.add('show');
+}
+function slotHtml(title,loc,qty,id,isQuantity){
+  const hint=isQuantity?'目前庫位：'+(loc||'未設定')+'｜目前數量：'+(qty||'0'):'目前庫位：'+(loc||'未設定');
+  const label=isQuantity?'輸入'+(currentOperation.action==='in'?'入庫':'出庫')+'數量':'輸入新庫位';
+  return '<div class="slot"><div class="slot-title">'+esc(title)+'</div><div class="hint">'+esc(hint)+'</div><div class="field">'+
+    '<label for="'+id+'">'+label+'</label><input id="'+id+'" '+(isQuantity?'type="number" min="0.000001" step="any"':'type="text"')+
+    ' placeholder="'+(isQuantity?'留空則不異動':'留空代表不修改')+'"></div></div>';
+}
+function submitModal() {
+  if (busy || !currentOperation) return;
+
+  const op = currentOperation;
+  const item = op.item;
+
+  const payload = {
+    sheetName: item.sheetName,
+    row: item.row
+  };
+
+  if (op.kind === 'movement') {
+    payload.action = op.action;
+    payload.operator = $('operatorSelect').value;
+    payload.qty1 = $('qty1') ? $('qty1').value : '';
+    payload.qty2 = $('qty2') ? $('qty2').value : '';
+    payload.note = $('opNote') ? $('opNote').value : '';
+
+    if (payload.qty1 === '' && payload.qty2 === '') {
+      showStatus('請至少輸入一個數量；留空欄位不會異動。', 'err');
+      return;
+    }
+  } else {
+    payload.loc1 = $('loc1') ? $('loc1').value : '';
+    payload.loc2 = $('loc2') ? $('loc2').value : '';
+
+    if (!payload.loc1.trim() && !payload.loc2.trim()) {
+      showStatus('請至少填寫一個要修改的庫位。', 'err');
+      return;
+    }
+  }
+
+  setBusy(true);
+  $('submitBtn').textContent = '處理中…';
+
+  const runner = google.script.run
+    .withSuccessHandler(result => {
+      setBusy(false);
+      closeModal();
+
+      refreshOneRecord(
+        item.sheetName,
+        item.row,
+        result.message || '操作完成。'
+      );
+    })
+    .withFailureHandler(err => {
+      setBusy(false);
+      $('submitBtn').textContent = '確認執行';
+      showStatus(err.message || String(err), 'err');
+    });
+
+  if (op.kind === 'movement') {
+    runner.performStockMovement(payload);
+  } else {
+    runner.updateMaterialLocations(payload);
+  }
+}
+function closeModal(){
+  $('overlay').classList.remove('show');
+  currentOperation=null;
+}
+$('count').textContent='尚未查詢';
+$('status').textContent='請輸入關鍵字後查詢。';
+$('results').innerHTML='';
+</script>
+</body>
+</html>`;
+
+function doGet() {
+  return HtmlService.createHtmlOutput(MATERIAL_HTML)
+    .setTitle('物料庫存查詢與異動')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * 將符合條件的資料列整理成前端需要的物料物件。
+ * 搜尋與單筆刷新共用相同欄位格式，避免 makeRecord_ 未定義。
+ */
+function makeRecord_(c, rowNumber, shownRow, headers, dateSort) {
+  return {
+    sheetName: c.name,
+    sheetOrder: c.order,
+    type: c.type,
+    row: rowNumber,
+    itemNo: at_(shownRow, c.itemCol),
+    itemName: at_(shownRow, c.nameCol),
+    batch: at_(shownRow, c.batchCol),
+    dateText: c.dateCol ? at_(shownRow, c.dateCol) : '',
+    dateSort: dateSort || 0,
+    loc1: at_(shownRow, c.loc1Col),
+    qty1: at_(shownRow, c.qty1Col),
+    loc2: c.qty2Col ? at_(shownRow, c.loc2Col) : '',
+    qty2: c.qty2Col ? at_(shownRow, c.qty2Col) : '',
+    headers: headers,
+    allFields: shownRow.slice(0, c.cols)
+  };
+}
+
+function searchMaterials(keyword) {
+  // 只比對品號、儲位1、儲位2；不搜尋品名、批號、備註或其他欄位。
+  const q = String(keyword || '').trim().toLowerCase();
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const out = [];
+
+  SHEET_CONFIG.forEach(c => {
+    const sh = ss.getSheetByName(c.name);
+    if (!sh) return;
+
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) return;
+
+    const numRows = lastRow - 1;
+
+    // 每張表只讀一次顯示資料；搜尋時只檢查設定中的品號與儲位欄。
+    // 避免原本同時讀取整張表的 getValues() + getDisplayValues()。
+    const shown = sh.getRange(2, 1, numRows, c.cols).getDisplayValues();
+
+    // 日期原始值只讀日期欄，不再把整張表的原始值全部讀一次。
+    const dateValues = c.dateCol
+      ? sh.getRange(2, c.dateCol, numRows, 1).getValues()
+      : null;
+
+    let headers = null;
+    const matchedRows = [];
+
+    shown.forEach((r, i) => {
+      const item = at_(r, c.itemCol);
+      const loc1 = at_(r, c.loc1Col);
+      const loc2 = c.loc2Col ? at_(r, c.loc2Col) : '';
+
+      // 空白資料列略過；儲位2不存在的倉別不會讀取或搜尋不存在的欄位。
+      if (!item && !loc1 && !loc2) return;
+
+      // 僅比對品號與實際存在的儲位欄位。
+      if (q) {
+        const matched = [item, loc1, loc2].some(value =>
+          String(value || '').toLowerCase().includes(q)
+        );
+        if (!matched) return;
+      }
+
+      let dateSort = 0;
+      if (dateValues) {
+        const dateValue = dateValues[i][0];
+        if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
+          dateSort = dateValue.getTime();
+        } else if (dateValue) {
+          dateSort = Date.parse(dateValue) || 0;
+        }
+      }
+
+      matchedRows.push({ rowNumber: i + 2, shownRow: r, dateSort: dateSort });
+    });
+
+    // 沒有符合的資料就不額外讀取標題列。
+    if (!matchedRows.length) return;
+    headers = sh.getRange(1, 1, 1, c.cols).getDisplayValues()[0];
+
+    matchedRows.forEach(x => {
+      out.push(makeRecord_(c, x.rowNumber, x.shownRow, headers, x.dateSort));
+    });
+  });
+
+  // 保留原本排序：倉別 → 品號 → 日期（舊到新）。
+  out.sort((a,b)=>{
+    if(a.sheetOrder!==b.sheetOrder)return a.sheetOrder-b.sheetOrder;
+    const byItem=String(a.itemNo).localeCompare(String(b.itemNo),'zh-Hant',{numeric:true});
+    if(byItem)return byItem;
+    if(!a.dateSort&&!b.dateSort)return a.row-b.row;
+    if(!a.dateSort)return 1;
+    if(!b.dateSort)return -1;
+    return a.dateSort-b.dateSort||a.row-b.row;
+  });
+
+  return {results:out,count:out.length};
+}
+
+/**
+ * 入庫／出庫
+ * 重點：在既有公式後面繼續加減，保留之前所有異動公式。
+ */
+function performStockMovement(p) {
+  validatePayload_(p);
+
+  const c = config_(p.sheetName);
+  const sh = getSheet_(c);
+  const row = validRow_(sh, p.row);
+
+  if (p.action !== 'in' && p.action !== 'out') {
+    throw new Error('異動類型錯誤。');
+  }
+
+  const allowedOperators = ['湯秀蓮','李政松','邱慶哲','黃文廷'];
+  const operator = String(p.operator || '').trim();
+  if (!allowedOperators.includes(operator)) {
+    throw new Error('請先選擇有效的操作人員，再進行入庫或出庫。');
+  }
+
+  const inputs = [
+    {
+      key:'qty1',
+      col:c.qty1Col,
+      label:c.type === 'double' ? '數量1' : '數量'
+    },
+    {
+      key:'qty2',
+      col:c.qty2Col,
+      label:'數量2'
+    }
+  ];
+
+  const changes = [];
+
+  inputs.forEach(x=>{
+    if(
+      !x.col ||
+      p[x.key] === '' ||
+      p[x.key] === null ||
+      p[x.key] === undefined
+    ) return;
+
+    const amount = Number(p[x.key]);
+
+    if(!Number.isFinite(amount)||amount<=0){
+      throw new Error(x.label+'請輸入大於 0 的數字，或留空不異動。');
+    }
+
+    const cell = sh.getRange(row,x.col);
+    const currentRaw = cell.getValue();
+    const current = currentRaw === '' ? 0 : Number(currentRaw);
+
+    if(!Number.isFinite(current)){
+      throw new Error(x.label+'目前不是數字，請先檢查試算表。');
+    }
+
+    const next = p.action === 'in'
+      ? current + amount
+      : current - amount;
+
+    if(next<0){
+      throw new Error(x.label+'庫存不足，不能出庫。');
+    }
+
+    changes.push({
+      cell:cell,
+      current:current,
+      next:next,
+      label:x.label,
+      amount:amount
+    });
+  });
+
+  if(!changes.length){
+    throw new Error('請至少輸入一個數量。留空欄位不會異動。');
+  }
+
+  // 累積公式，不覆蓋先前的異動紀錄。
+  changes.forEach(x=>{
+    const operator = p.action === 'in' ? '+' : '-';
+    const oldFormula = x.cell.getFormula();
+    let newFormula;
+
+    if(oldFormula && oldFormula.startsWith('=')){
+      // 例如 =100-1，下一次入庫 1 會變成 =100-1+1。
+      newFormula = oldFormula + operator + x.amount;
+    }else{
+      // 原本是固定數字時，以該數字作為公式起點。
+      newFormula = '=' + x.current + operator + x.amount;
+    }
+
+    x.cell.setFormula(newFormula);
+  });
+
+  const actionText = p.action === 'in' ? '入庫' : '出庫';
+  const noteText = String(p.note || '').trim();
+
+  // 每次異動都寫入原本備註欄，保留舊紀錄並追加操作人員、類型、數量與備註。
+  // 範例：邱慶哲入庫｜5｜退料；未填備註時：邱慶哲入庫｜5
+  const noteQuantities = changes.map(x=>x.amount).join('、');
+  const movementLog = operator + actionText + '｜' + noteQuantities +
+    (noteText ? '｜' + noteText : '');
+  appendNote_(sh, row, c.noteCol, movementLog);
+
+  // 異動日期與備註分開儲存。
+  sh.getRange(row,c.movementCol).setValue(new Date());
+  sh.getRange(row,c.movementCol).setNumberFormat('yyyy/MM/dd (ddd) HH:mm');
+
+  SpreadsheetApp.flush();
+
+  const details = changes.map(x=>
+    x.label+'：'+x.current+
+    (p.action==='in'?' + ':' - ')+
+    x.amount+' = '+x.next
+  ).join('、');
+
+  return {
+    success:true,
+    message:actionText+'完成：'+details
+  };
+}
+
+/**
+ * 編輯詳細資料。
+ * 品號、品名、數量、ERP、確認、單位數量、異動、差異等欄位禁止修改。
+ */
+function updateMaterialFields(p) {
+  validatePayload_(p);
+
+  const c = config_(p.sheetName);
+  const sh = getSheet_(c);
+  const row = validRow_(sh,p.row);
+
+  if(!Array.isArray(p.fields)||!p.fields.length){
+    throw new Error('沒有可儲存的修改欄位。');
+  }
+
+  const headers = sh.getRange(1,1,1,c.cols).getDisplayValues()[0];
+  const protectedNames = ['品號','品名','數量','數量1','數量2','ERP','確認','單位數量','異動','差異'];
+  const protectedCols = [c.itemCol,c.nameCol,c.qty1Col,c.qty2Col,c.movementCol].filter(Boolean);
+  const changed = [];
+
+  p.fields.forEach(f=>{
+    const col = Number(f.col);
+    if(!Number.isInteger(col)||col<1||col>c.cols){
+      throw new Error('修改欄位編號不正確。');
+    }
+
+    const label = String(headers[col-1]||'')
+      .replace(/[\s\r\n：:（）()]/g,'')
+      .toLowerCase();
+
+    if(
+      protectedCols.includes(col) ||
+      protectedNames.some(n=>
+        label===n.toLowerCase() ||
+        (['erp','確認','單位數量','差異','品號','品名','異動'].includes(n.toLowerCase()) &&
+          label.includes(n.toLowerCase()))
+      )
+    ){
+      throw new Error('欄位「'+(headers[col-1]||col)+'」禁止修改。');
+    }
+
+    const cell = sh.getRange(row,col);
+    const oldValue = String(cell.getDisplayValue()||'');
+    const newValue = String(f.value===null||f.value===undefined?'':f.value);
+
+    if(oldValue!==newValue){
+      cell.setValue(newValue);
+      changed.push(String(headers[col-1]||('第'+col+'欄')));
+    }
+  });
+
+  if(!changed.length){
+    throw new Error('資料沒有變更，無需儲存。');
+  }
+
+  SpreadsheetApp.flush();
+  return {success:true,message:'資料修改完成：'+changed.join('、')};
+}
+
+/**
+ * 修改庫位：只更新庫位，不增加備註、不更動異動日期。
+ */
+function updateMaterialLocations(p) {
+  validatePayload_(p);
+
+  const c = config_(p.sheetName);
+  const sh = getSheet_(c);
+  const row = validRow_(sh,p.row);
+  const changes = [];
+
+  const inputs = [
+    {key:'loc1',col:c.loc1Col,label:'庫位1'},
+    {key:'loc2',col:c.loc2Col,label:'庫位2'}
+  ];
+
+  inputs.forEach(x=>{
+    if(!x.col)return;
+    if(p[x.key]===undefined||p[x.key]===null||String(p[x.key]).trim()==='')return;
+
+    const cell = sh.getRange(row,x.col);
+    const oldValue = String(cell.getDisplayValue()||'').trim();
+    const newValue = String(p[x.key]).trim();
+
+    if(oldValue!==newValue){
+      cell.setValue(newValue);
+      changes.push(x.label);
+    }
+  });
+
+  if(!changes.length){
+    throw new Error('庫位沒有變更，無需儲存。');
+  }
+
+  SpreadsheetApp.flush();
+  return {success:true,message:'庫位修改完成：'+changes.join('、')};
+}
+
+function validatePayload_(p) {
+  if(!p||!p.sheetName||!p.row){
+    throw new Error('資料資訊不足，請重新查詢。');
+  }
+}
+function config_(name) {
+  const c = SHEET_CONFIG.find(x=>x.name===String(name));
+  if(!c)throw new Error('不允許操作此分頁：'+name);
+  return c;
+}
+function getSheet_(c) {
+  const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(c.name);
+  if(!sh)throw new Error('找不到分頁：'+c.name+'。請檢查 SHEET_CONFIG 的分頁名稱。');
+  return sh;
+}
+function validRow_(sh,n) {
+  const row = Number(n);
+  if(!Number.isInteger(row)||row<2||row>sh.getLastRow()){
+    throw new Error('資料列已失效，請重新查詢。');
+  }
+  return row;
+}
+function at_(row,col) {
+  if(!col)return '';
+  const value = row[col-1];
+  return value===null||value===undefined?'':String(value);
+}
+function timestamp_() {
+  return Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy/MM/dd HH:mm:ss');
+}
+function appendNote_(sh,row,col,text) {
+  if(!col)return;
+  const cell = sh.getRange(row,col);
+  const oldText = String(cell.getDisplayValue()||'').trim();
+  cell.setValue(oldText?oldText+'\n'+text:text);
+}
+
+/**
+ * 只讀取指定分頁、指定列的物料資料
+ * 異動後局部刷新使用，不重新搜尋全部分頁。
+ */
+function getMaterialRecord(sheetName, rowNumber) {
+  const c = config_(sheetName);
+  const sh = getSheet_(c);
+  const row = validRow_(sh, rowNumber);
+
+  const values = sh.getRange(row, 1, 1, c.cols).getValues()[0];
+  const shown = sh.getRange(row, 1, 1, c.cols).getDisplayValues()[0];
+  const headers = sh.getRange(1, 1, 1, c.cols).getDisplayValues()[0];
+
+  const dateValue = c.dateCol ? values[c.dateCol - 1] : null;
+  let dateSort = 0;
+
+  if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
+    dateSort = dateValue.getTime();
+  } else if (dateValue) {
+    dateSort = Date.parse(dateValue) || 0;
+  }
+
+  return {
+    sheetName: c.name,
+    sheetOrder: c.order,
+    type: c.type,
+    row: row,
+    itemNo: at_(shown, c.itemCol),
+    itemName: at_(shown, c.nameCol),
+    batch: at_(shown, c.batchCol),
+    dateText: c.dateCol ? at_(shown, c.dateCol) : '',
+    dateSort: dateSort,
+    loc1: at_(shown, c.loc1Col),
+    qty1: at_(shown, c.qty1Col),
+    loc2: c.qty2Col ? at_(shown, c.loc2Col) : '',
+    qty2: c.qty2Col ? at_(shown, c.qty2Col) : '',
+    headers: headers,
+    allFields: shown.slice(0, c.cols)
+  };
+}
